@@ -2,61 +2,53 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 import google.generativeai as genai
 from dotenv import load_dotenv
+import streamlit as st
 import os
 
-# Load API key
+# Load local .env
 load_dotenv()
 
-genai.configure(
-    api_key=os.getenv("GOOGLE_API_KEY")
-)
+# Get API key
+api_key = os.getenv("GOOGLE_API_KEY")
 
-# Gemini model
-llm = genai.GenerativeModel(
-    "models/gemini-2.5-flash"
-)
+# If running on Streamlit Cloud
+if api_key is None:
+    api_key = st.secrets["GOOGLE_API_KEY"]
 
-# Embedding model
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+# Configure Gemini
+genai.configure(api_key=api_key)
 
-# ChromaDB
-client = chromadb.PersistentClient(
-    path="chroma_db"
-)
+# Gemini Model
+llm = genai.GenerativeModel("models/gemini-2.5-flash")
 
-collection = client.get_collection(
-    "dream2plan"
-)
+# Embedding Model
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-print("Dream2Plan RAG Chatbot Started!")
-print("Type 'exit' to quit.\n")
+# ChromaDB Connection
+client = chromadb.PersistentClient(path="chroma_db")
 
-while True:
+collection = client.get_collection("dream2plan")
 
-    question = input("Ask a question: ")
+def get_answer(question):
+    try:
+        # Create query embedding
+        query_embedding = embedding_model.encode(question).tolist()
 
-    if question.lower() == "exit":
-        break
-
-    query_embedding = embedding_model.encode(question).tolist()
-
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=3
-    )
-
-    context = "\n\n".join(results["documents"][0])
-
-    sources = list(
-        set(
-            meta["source"]
-            for meta in results["metadatas"][0]
+        # Retrieve relevant chunks
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=5
         )
-    )
 
-    prompt = f"""
+        retrieved_chunks = results["documents"][0]
+
+        context = "\n\n".join(retrieved_chunks)
+
+        sources = sorted(
+            set(meta["source"] for meta in results["metadatas"][0])
+        )
+
+        prompt = f"""
 You are Dream2Plan, a startup planning assistant.
 
 Answer ONLY using the provided context.
@@ -73,16 +65,9 @@ Question:
 {question}
 """
 
-    response = llm.generate_content(prompt)
+        response = llm.generate_content(prompt)
 
-    print("\nAnswer:")
-    print(response.text)
+        return response.text, sources
 
-    if "I could not find information" in response.text:
-        print("\nSources: None")
-    else:
-        print("\nSources:")
-        for source in sources:
-            print("-", source)
-
-    print("\n" + "=" * 60 + "\n")
+    except Exception as e:
+        return f"Error: {str(e)}", []

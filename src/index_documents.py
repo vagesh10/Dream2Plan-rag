@@ -5,11 +5,25 @@ import chromadb
 CHUNK_SIZE = 500
 OVERLAP = 100
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+# Load embedding model
+model = SentenceTransformer(
+    "all-MiniLM-L6-v2"
+)
 
-client = chromadb.PersistentClient(path="chroma_db")
+# Connect to ChromaDB
+client = chromadb.PersistentClient(
+    path="chroma_db"
+)
 
-collection = client.get_or_create_collection(
+# Delete old collection if it exists
+try:
+    client.delete_collection("dream2plan")
+    print("Old collection deleted.")
+except:
+    print("No existing collection found.")
+
+# Create fresh collection
+collection = client.create_collection(
     name="dream2plan"
 )
 
@@ -19,11 +33,14 @@ ids = []
 
 chunk_id = 0
 
+# Read all txt files
 files = list(Path("data").glob("*.txt"))
 
 for file in files:
 
-    text = file.read_text(encoding="utf-8")
+    text = file.read_text(
+        encoding="utf-8"
+    )
 
     start = 0
 
@@ -35,16 +52,19 @@ for file in files:
 
         documents.append(chunk)
 
-        metadatas.append({
-            "source": file.name
-        })
+        metadatas.append(
+            {
+                "source": file.name
+            }
+        )
 
-        ids.append(f"chunk_{chunk_id}")
+        ids.append(
+            f"chunk_{chunk_id}"
+        )
 
         chunk_id += 1
 
         start += CHUNK_SIZE - OVERLAP
-
 
 print(f"Creating embeddings for {len(documents)} chunks...")
 

@@ -1,5 +1,16 @@
-venv/
-.env
-chroma_db/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+
+# Virtual Environment
+venv/
+
+# Environment variables
+.env
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
